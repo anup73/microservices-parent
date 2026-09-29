@@ -1,0 +1,12 @@
+<modelVersion>4.0.0</modelVersion>
+<groupId>com.example</groupId>
+<artifactId>microservices-parent</artifactId>
+<version>1.0.0</version>
+<packaging>pom</packaging>
+<modules>
+    <module>ecommerce-rag-service</module>
+    <module>springboot-mcp-server</module>
+    <module>ecommerece-auth-server</module>
+	<module>agent</module>
+    <module>ecommerece-ai-agent</module>
+</modules>

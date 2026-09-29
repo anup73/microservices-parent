@@ -1,0 +1,102 @@
+RagIndexer is the ingestion orchestrator. On reindexAll() it builds/refreshes the vector index from MySQL.
+It does this in order:
+1.
+Load catalog — categories and products from MySQL via CatalogRepository
+2.
+Build documents — turns each row into natural-language RagDocuments (with category breadcrumb paths)
+3.
+Skip unchanged — SHA-256 of document text vs stored hash; unchanged docs are not re-embedded
+4.
+Embed + store — only changed docs go to Ollama, then upserted into sqlite-vec with metadata
+5.
+Clean stale — removes vectors for products/categories that no longer exist in MySQL
+6.
+Return counts — how many were seen, indexed, skipped, and removed
+So it keeps the SQLite vector store in sync with the MySQL catalog without re-embedding everything every time.
+
+---------------------------------------------------------------------------------------
+
+RagRetriever handles semantic search over the indexed vectors. It’s used by GET /api/rag/search.
+On search(query, limit) it:
+1.
+Embeds the query via Ollama (EmbeddingService)
+2.
+Runs nearest-neighbor search in sqlite-vec for the top limit matches
+3.
+Maps hits to RagSearchResult (document id, SKU, category, price snapshot, content, distance)
+It does not call MySQL or generate an LLM answer — only vector similarity lookup. For live price/stock, callers are expected to re-query MySQL using the returned SKU/documentId
+
+There is no /index endpoint. Use reindex:
+Postman
+1.
+Method: POST
+2.
+URL: http://localhost:8080/api/rag/reindex
+3.
+Body: none (no JSON needed)
+4.
+Headers: none required
+
+
+------------------------------------------------------------------
+How “chunks” are created
+1.
+MySQL rows → RagDocumentBuilder
+2.
+One RagDocument per product or category
+3.
+That document’s content string is embedded (Ollama)
+4.
+Content + metadata + vector are upserted into sqlite-vec as one VectorDocument
+Unit of indexing = 1 product or 1 category, not sliding-window chunks.
+Content format (what gets embedded)
+Product example shape:
+Product: Wireless Headphones
+Category: Electronics > Audio > Headphones
+
+The Wireless Headphones is part of the Electronics > Audio > Headphones category.
+It has SKU WH-100.
+<description text>
+The product is currently ACTIVE.
+Price: INR 4999.
+
+
+Category example shape:
+Category: Headphones
+Path: Electronics > Audio > Headphones
+
+<description text>
+This category is currently ACTIVE.
+
+----------------------------------------------------------------------
+
+Use a GET request with query params.
+Postman
+1.
+Method: GET
+2.
+URL: http://localhost:8080/api/rag/search
+3.
+Params:
+◦
+q = your search text (required), e.g. wireless headphones
+◦
+limit = max results (optional, default 10)
+4.
+Send
+Example URL:
+http://localhost:8080/api/rag/search?q=wireless%20headphones&limit=10
+No body or auth headers needed.
+From another application
+curl
+curl "http://localhost:8080/api/rag/search?q=wireless%20headphones&limit=10"
+JavaScript (fetch)
+const q = encodeURIComponent("wireless headphones");
+const res = await fetch(`http://localhost:8080/api/rag/search?q=${q}&limit=10`);
+const results = await res.json();
+Java (RestClient / WebClient)
+List<RagSearchResult> results = restClient.get()
+    .uri("http://localhost:8080/api/rag/search?q={q}&limit={limit}", "wireless headphones", 10)
+    .retrieve()
+    .body(new ParameterizedTypeReference<>() {});
+Response is a JSON array of hits (documentId, sku, content, distance, etc.). Ensure the service is running and you’ve run /api/rag/reindex at least once so the vector index has data.
