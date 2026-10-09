@@ -2,6 +2,7 @@ package com.ecommerce.springboot_mcp_server.client;
 
 import com.ecommerce.springboot_mcp_server.dto.CreateProductRequest;
 import com.ecommerce.springboot_mcp_server.dto.CustomerDetailsResponse;
+import com.ecommerce.springboot_mcp_server.dto.InventoryResponse;
 import com.ecommerce.springboot_mcp_server.dto.OrderSummaryResponse;
 import com.ecommerce.springboot_mcp_server.dto.PaymentResponse;
 import com.ecommerce.springboot_mcp_server.dto.ProductResponse;
@@ -87,6 +88,22 @@ public class EcommerceApiClient {
                 .uri("/api/ecommerce/products/{productId}/payments", productId)
                 .retrieve()
                 .body(new org.springframework.core.ParameterizedTypeReference<List<PaymentResponse>>() {});
+    }
+
+    public InventoryResponse getInventoryByProductId(Long productId) {
+        return restClient.get()
+                .uri("/api/ecommerce/products/{productId}/inventory", productId)
+                .retrieve()
+                .body(InventoryResponse.class);
+    }
+
+    public List<InventoryResponse> getInventoryByProductName(String productName) {
+        return restClient.get()
+                .uri(uriBuilder -> uriBuilder.path("/api/ecommerce/inventory")
+                        .queryParam("productName", productName)
+                        .build())
+                .retrieve()
+                .body(new org.springframework.core.ParameterizedTypeReference<List<InventoryResponse>>() {});
     }
 
     public ProductResponse createProduct(CreateProductRequest request) {

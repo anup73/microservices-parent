@@ -5,6 +5,7 @@ import com.agent.dto.CreateProductImageRequest;
 import com.agent.dto.CustomerSummaryResponse;
 import com.agent.dto.CustomerAddressResponse;
 import com.agent.dto.CustomerDetailsResponse;
+import com.agent.dto.InventoryResponse;
 import com.agent.dto.OrderSummaryResponse;
 import com.agent.dto.PaymentResponse;
 import com.agent.dto.ProductImageResponse;
@@ -27,6 +28,8 @@ import com.agent.repository.PaymentRepository;
 import com.agent.repository.ProductImageRepository;
 import com.agent.repository.ProductRepository;
 import jakarta.validation.ValidationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +37,8 @@ import java.util.List;
 
 @Service
 public class EcommerceQueryService {
+
+    private static final Logger log = LoggerFactory.getLogger(EcommerceQueryService.class);
 
     private final OrderRepository orderRepository;
     private final CustomerRepository customerRepository;
@@ -62,42 +67,53 @@ public class EcommerceQueryService {
     }
 
     public List<OrderSummaryResponse> getAllOrders() {
-        return orderRepository.findAll().stream()
+        log.info("Fetching all orders");
+        List<OrderSummaryResponse> orders = orderRepository.findAll().stream()
                 .map(this::toOrderSummary)
                 .toList();
+        log.info("Fetched {} orders", orders.size());
+        return orders;
     }
 
     public List<CustomerDetailsResponse> getAllCustomers() {
-        return customerRepository.findAll().stream()
+        log.info("Fetching all customers");
+        List<CustomerDetailsResponse> customers = customerRepository.findAll().stream()
                 .map(this::toCustomerDetails)
                 .toList();
+        log.info("Fetched {} customers", customers.size());
+        return customers;
     }
 
     public OrderSummaryResponse getOrderByReference(String orderReference) {
+        log.info("Fetching order by reference {}", orderReference);
         return findOrderByReference(orderReference)
                 .map(this::toOrderSummary)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found for reference " + orderReference));
     }
 
     public List<OrderSummaryResponse> getOrdersByProductId(Long productId) {
+        log.info("Fetching orders for product {}", productId);
         return orderRepository.findDistinctByOrderItemsProductProductId(productId).stream()
                 .map(this::toOrderSummary)
                 .toList();
     }
 
     public CustomerDetailsResponse getCustomerDetails(Long customerId) {
+        log.info("Fetching details for customer {}", customerId);
         return customerRepository.findWithAddressesByCustomerId(customerId)
                 .map(this::toCustomerDetails)
                 .orElseThrow(() -> new ResourceNotFoundException("Customer not found for id " + customerId));
     }
 
     public List<OrderSummaryResponse> getOrdersByCustomerId(Long customerId) {
+        log.info("Fetching orders for customer {}", customerId);
         return orderRepository.findByCustomerCustomerId(customerId).stream()
                 .map(this::toOrderSummary)
                 .toList();
     }
 
     public List<PaymentResponse> getPaymentsByOrderReference(String orderReference) {
+        log.info("Fetching payments for order {}", orderReference);
         Order order = findOrderByReference(orderReference)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found for reference " + orderReference));
 
@@ -107,20 +123,54 @@ public class EcommerceQueryService {
     }
 
     public List<PaymentResponse> getPaymentsByProductId(Long productId) {
+        log.info("Fetching payments for product {}", productId);
         return paymentRepository.findDistinctByOrderOrderItemsProductProductId(productId).stream()
                 .map(this::toPaymentResponse)
                 .toList();
     }
 
     public List<PaymentResponse> getAllPayments() {
+        log.info("Fetching all payments");
         return paymentRepository.findAll().stream()
                 .map(this::toPaymentResponse)
                 .toList();
     }
 
+    public InventoryResponse getInventoryByProductId(Long productId) {
+        log.info("Fetching inventory for product {}", productId);
+        return inventoryRepository.findWithProductByProductProductId(productId)
+                .map(this::toInventoryResponse)
+                .orElseThrow(() -> new ResourceNotFoundException("Inventory not found for product id " + productId));
+    }
+
+    public List<InventoryResponse> getInventoryByProductName(String productName) {
+        log.info("Fetching inventory for product name '{}'", productName);
+        List<InventoryResponse> inventory = inventoryRepository.findByProductNameContainingIgnoreCase(productName.trim()).stream()
+                .map(this::toInventoryResponse)
+                .toList();
+        if (inventory.isEmpty()) {
+            throw new ResourceNotFoundException("Inventory not found for product name " + productName);
+        }
+        return inventory;
+    }
+
+    private InventoryResponse toInventoryResponse(Inventory inventory) {
+        return new InventoryResponse(
+                inventory.getInventoryId(),
+                inventory.getProduct().getProductId(),
+                inventory.getProduct().getSku(),
+                inventory.getProduct().getName(),
+                inventory.getQuantityAvailable(),
+                inventory.getQuantityReserved(),
+                inventory.getUpdatedAt()
+        );
+    }
+
     @Transactional
     public ProductResponse createProduct(CreateProductRequest request) {
+        log.info("Creating product with SKU {}", request.sku());
         if (productRepository.existsBySku(request.sku())) {
+            log.warn("Product creation rejected, SKU {} already exists", request.sku());
             throw new ValidationException("Product already exists for SKU " + request.sku());
         }
         if (request.quantityAvailable() < 0) {
@@ -153,11 +203,14 @@ public class EcommerceQueryService {
         savedProduct.setInventory(savedInventory);
 
         List<ProductImage> savedImages = persistImages(savedProduct, request);
+        log.info("Created product {} (SKU {}) with {} images", savedProduct.getProductId(), savedProduct.getSku(), savedImages.size());
         return toProductResponse(savedProduct, savedImages, savedInventory);
     }
 
     @Transactional
     public ProductResponse updateProductInventory(Long productId, UpdateInventoryRequest request) {
+        log.info("Updating inventory for product {}: available={}, reserved={}",
+                productId, request.quantityAvailable(), request.quantityReserved());
         if (request.quantityAvailable() < 0) {
             throw new ValidationException("Available quantity must be zero or greater");
         }
@@ -181,6 +234,7 @@ public class EcommerceQueryService {
 
     @Transactional
     public ProductResponse updateProductImages(Long productId, UpdateProductImagesRequest request) {
+        log.info("Replacing images for product {}", productId);
         Product product = productRepository.findWithDetailsByProductId(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found for id " + productId));
 

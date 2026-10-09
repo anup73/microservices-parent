@@ -22,12 +22,16 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
+import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,7 +63,8 @@ public class AuthorizationServerConfig {
                 .securityMatcher("/oauth2/token", "/oauth2/jwks", "/oauth2/introspect", "/oauth2/revoke",
                         "/.well-known/oauth-authorization-server")
                 .oauth2AuthorizationServer(Customizer.withDefaults())
-                .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated());
+                .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
+                .addFilterBefore(new OAuth2TokenRequestLoggingFilter(), BasicAuthenticationFilter.class);
         return http.build();
     }
 
@@ -136,6 +141,24 @@ public class AuthorizationServerConfig {
                 .build();
 
         return new InMemoryRegisteredClientRepository(agentClient, mcpServerClient, aiAgentClient);
+    }
+
+    /**
+     * Logs once an access token has been successfully built for a client_credentials
+     * request, right before it's signed and returned to the caller.
+     */
+    @Bean
+    public OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer() {
+        return context -> {
+            if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
+                RegisteredClient registeredClient = context.getRegisteredClient();
+                log.info("OAuth2 access token issued: clientId='{}' grantType='{}' scopes={} ttl={}",
+                        registeredClient.getClientId(),
+                        context.getAuthorizationGrantType().getValue(),
+                        context.getAuthorizedScopes(),
+                        registeredClient.getTokenSettings().getAccessTokenTimeToLive());
+            }
+        };
     }
 
     @Bean

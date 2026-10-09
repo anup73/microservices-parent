@@ -3,6 +3,7 @@ package com.ecommerce.springboot_mcp_server.tool;
 import com.ecommerce.springboot_mcp_server.client.EcommerceApiClient;
 import com.ecommerce.springboot_mcp_server.dto.CreateProductRequest;
 import com.ecommerce.springboot_mcp_server.dto.CustomerDetailsResponse;
+import com.ecommerce.springboot_mcp_server.dto.InventoryResponse;
 import com.ecommerce.springboot_mcp_server.dto.OrderSummaryResponse;
 import com.ecommerce.springboot_mcp_server.dto.PaymentResponse;
 import com.ecommerce.springboot_mcp_server.dto.ProductResponse;
@@ -78,6 +79,18 @@ public class EcommerceTools {
     public List<PaymentResponse> getPaymentsByProductId(
             @ToolParam(description = "Product id") Long productId) {
         return apiClient.getPaymentsByProductId(productId);
+    }
+
+    @Tool(description = "Get the inventory (available/reserved quantities) for a product by product id")
+    public InventoryResponse getInventoryByProductId(
+            @ToolParam(description = "Product id") Long productId) {
+        return apiClient.getInventoryByProductId(productId);
+    }
+
+    @Tool(description = "Search inventory by product name (case-insensitive partial match)")
+    public List<InventoryResponse> getInventoryByProductName(
+            @ToolParam(description = "Full or partial product name") String productName) {
+        return apiClient.getInventoryByProductName(productName);
     }
 
     @Tool(description = "Create a new product in the catalog")

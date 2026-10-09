@@ -2,7 +2,9 @@ package com.agent.controller;
 
 import com.agent.dto.CreateProductRequest;
 import com.agent.dto.CustomerDetailsResponse;
+import com.agent.dto.InventoryResponse;
 import com.agent.dto.OrderSummaryResponse;
+import org.springframework.web.bind.annotation.RequestParam;
 import com.agent.dto.PaymentResponse;
 import com.agent.dto.ProductResponse;
 import com.agent.dto.UpdateInventoryRequest;
@@ -67,6 +69,16 @@ public class EcommerceController {
     @GetMapping("/payments")
     public List<PaymentResponse> getAllPayments() {
         return ecommerceQueryService.getAllPayments();
+    }
+
+    @GetMapping("/products/{productId}/inventory")
+    public InventoryResponse getInventoryByProductId(@PathVariable Long productId) {
+        return ecommerceQueryService.getInventoryByProductId(productId);
+    }
+
+    @GetMapping("/inventory")
+    public List<InventoryResponse> getInventoryByProductName(@RequestParam String productName) {
+        return ecommerceQueryService.getInventoryByProductName(productName);
     }
 
     @PostMapping("/products")

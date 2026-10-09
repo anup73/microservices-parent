@@ -1,6 +1,8 @@
 package com.agent.service;
 
 import com.agent.dto.SearchOrdersRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
@@ -15,6 +17,8 @@ import java.util.Map;
 @Profile("amazon")
 public class AmazonOrdersService {
 
+    private static final Logger log = LoggerFactory.getLogger(AmazonOrdersService.class);
+
     private static final ParameterizedTypeReference<Map<String, Object>> MAP_RESPONSE =
             new ParameterizedTypeReference<>() {
             };
@@ -28,6 +32,7 @@ public class AmazonOrdersService {
     }
 
     public Mono<Map<String, Object>> searchOrders(SearchOrdersRequest request) {
+        log.info("Searching Amazon orders");
         return amazonLwaService.getAccessToken()
                 .flatMap(accessToken -> amazonSpApiWebClient.get()
                         .uri(uriBuilder -> {
@@ -46,10 +51,12 @@ public class AmazonOrdersService {
                         })
                         .header("x-amz-access-token", accessToken.accessToken())
                         .retrieve()
-                        .bodyToMono(MAP_RESPONSE));
+                        .bodyToMono(MAP_RESPONSE))
+                .doOnError(error -> log.error("Amazon order search failed: {}", error.getMessage()));
     }
 
     public Mono<Map<String, Object>> getOrder(String orderId, List<String> includedData) {
+        log.info("Fetching Amazon order {}", orderId);
         return amazonLwaService.getAccessToken()
                 .flatMap(accessToken -> amazonSpApiWebClient.get()
                         .uri(uriBuilder -> {
@@ -59,7 +66,8 @@ public class AmazonOrdersService {
                         })
                         .header("x-amz-access-token", accessToken.accessToken())
                         .retrieve()
-                        .bodyToMono(MAP_RESPONSE));
+                        .bodyToMono(MAP_RESPONSE))
+                .doOnError(error -> log.error("Amazon order {} fetch failed: {}", orderId, error.getMessage()));
     }
 
     private static void addValue(org.springframework.web.util.UriBuilder uriBuilder, String name, Object value) {

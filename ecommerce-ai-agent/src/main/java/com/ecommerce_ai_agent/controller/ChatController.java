@@ -15,7 +15,7 @@ public class ChatController {
     }
 
     @PostMapping("/message")
-    public String sendMessage(@RequestBody String message) {
-        return aiAgentService.chat(message);
+    public String sendMessage(@RequestBody String message, jakarta.servlet.http.HttpSession session) {
+        return aiAgentService.chat(session.getId(), message);
     }
 }
